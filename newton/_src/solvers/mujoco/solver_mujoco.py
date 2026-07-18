@@ -6563,6 +6563,11 @@ class SolverMuJoCo(SolverBase, CouplingInterface):
         with wp.ScopedDevice(model.device):
             # create the MuJoCo Warp model
             self.mjw_model = mujoco_warp.put_model(self.mj_model)
+            if not wp.is_conditional_graph_supported():
+                # No conditional graph nodes on this platform (e.g. HIP/ROCm);
+                # use mujoco_warp's non-conditional solver loop (the same
+                # fallback path JAX uses).
+                self.mjw_model.opt.graph_conditional = False
             self.mjw_model.block_dim.linesearch_iterative = 32
 
             # patch mjw_model with mesh_pos if it doesn't have it
