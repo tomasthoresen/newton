@@ -138,7 +138,10 @@ class Example:
         self.capture()
 
     def capture(self):
-        if wp.get_device().is_cuda:
+        # SolverImplicitMPM's convergence loop is capture-safe only with
+        # conditional graph nodes; without them it reads residuals back to
+        # the host every batch, which cannot run under an active capture.
+        if wp.get_device().is_cuda and wp.is_conditional_graph_supported():
             with wp.ScopedCapture() as capture:
                 self.simulate()
             self.graph = capture.graph

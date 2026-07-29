@@ -189,7 +189,12 @@ class Example:
         self.capture()
 
     def capture(self):
-        self.graph = _capture_frame_graph(self.model, self.simulate)
+        # SolverImplicitMPM's convergence loop is capture-safe only with
+        # conditional graph nodes; without them it reads residuals back to
+        # the host every batch, which cannot run under an active capture.
+        self.graph = _capture_frame_graph(
+            self.model, self.simulate, enabled=wp.is_conditional_graph_supported()
+        )
 
     def simulate(self):
         self.state_0.clear_forces()
