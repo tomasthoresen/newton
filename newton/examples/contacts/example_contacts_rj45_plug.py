@@ -476,7 +476,9 @@ class Example:
     def step(self):
         gp = wp.transform_get_translation(self.gizmo_tf)
 
-        picked_body = int(self.viewer.picking.pick_body.numpy()[0])
+        # Only interactive viewers provide picking; headless runs have none.
+        picking = getattr(self.viewer, "picking", None)
+        picked_body = int(picking.pick_body.numpy()[0]) if picking is not None else -1
 
         self._pick_body.assign([picked_body])
         self._pick_target.assign([gp])
