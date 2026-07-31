@@ -139,7 +139,9 @@ class Example:
         )
 
         self.graph = None
-        self.use_graph = wp.get_device().is_cuda
+        # SolverImplicitMPM's convergence loop is capture-safe only with
+        # conditional graph nodes (see step() for the eager fallback).
+        self.use_graph = wp.get_device().is_cuda and wp.is_conditional_graph_supported()
         self.capture()
 
     def capture(self):
