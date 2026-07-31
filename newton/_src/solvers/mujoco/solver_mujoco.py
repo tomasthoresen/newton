@@ -7167,6 +7167,11 @@ class SolverMuJoCo(SolverBase, CouplingInterface):
                 # the authoring policy on the CPU model for inspection and MJCF export.
                 self.mj_model.tree_sleep_policy[:] = sleep_policies
             self.mjw_model.block_dim.linesearch_iterative = 32
+            if not wp.is_conditional_graph_supported():
+                # No conditional graph nodes on this platform (e.g. HIP/ROCm);
+                # use mujoco_warp's non-conditional solver loop (the same
+                # fallback path JAX uses).
+                self.mjw_model.opt.graph_conditional = False
 
             # patch mjw_model with mesh_pos if it doesn't have it
             if not hasattr(self.mjw_model, "mesh_pos"):
