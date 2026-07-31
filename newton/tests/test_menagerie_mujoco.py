@@ -1347,6 +1347,12 @@ def compare_mjw_models(
                     filter_parent = int(_mujoco.mjtDisableBit.mjDSBL_FILTERPARENT)
                     opt_newton = int(opt_newton) & ~filter_parent
                     opt_native = int(opt_native) & ~filter_parent
+                if opt_attr == "graph_conditional" and not wp.is_conditional_graph_supported():
+                    # SolverMuJoCo forces this flag off where conditional graph
+                    # nodes are unsupported, while put_model() leaves its default
+                    # True, so the expected value here is False, not equality.
+                    assert not opt_newton, f"{attr}.{opt_attr}: {opt_newton} != False"
+                    continue
                 if hasattr(opt_native, "numpy"):
                     np.testing.assert_allclose(
                         opt_newton.numpy(),
