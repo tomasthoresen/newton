@@ -9655,6 +9655,11 @@ class SolverMuJoCo(SolverBase, CouplingInterface):
                 # MuJoCo Warp consumes only the compiled runtime policy. Keep
                 # the authoring policy on the CPU model for inspection and MJCF export.
                 self.mj_model.tree_sleep_policy[:] = sleep_policies
+            if not wp.is_conditional_graph_supported():
+                # No conditional graph nodes on this platform (e.g. HIP/ROCm);
+                # use mujoco_warp's non-conditional solver loop (the same
+                # fallback path JAX uses).
+                self.mjw_model.opt.graph_conditional = False
 
             # --- Create unified mappings: MuJoCo[world, entity] -> Newton[entity] ---
 
