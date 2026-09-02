@@ -10,6 +10,7 @@ See the :mod:`newton._src.solvers.kamino._src.solvers.fk` module for a detailed 
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 
 import numpy as np
 import warp as wp
@@ -1919,7 +1920,11 @@ class ForwardKinematicsSolver:
             self.data.gauss_newton.step, self.data.gauss_newton.grad, self.data.line_search.grad_0
         )
         self.data.line_search.alpha.fill_(1.0)
-        wp.capture_while(self.data.line_search.loop_condition, lambda: self._run_line_search_iteration(body_q))
+        self._capture_while(
+            self.data.line_search.loop_condition,
+            lambda: self._run_line_search_iteration(body_q),
+            self.config.max_line_search_iterations,
+        )
 
         # Apply line search step and update max constraint
         wp.launch(
@@ -2370,6 +2375,35 @@ class ForwardKinematicsSolver:
         # Compute velocities
         self._solve_for_body_velocities(target_rel_transforms, base_u, actuator_u, body_q, body_u, world_mask)
 
+    def _capture_if(self, condition: wp.array, body: Callable[[], None]) -> None:
+        """Run ``body`` when ``condition[0]`` is non-zero.
+
+        Uses a conditional graph node where the platform has them. Where it does not
+        (HIP/ROCm), the body runs unconditionally under graph capture, which is safe
+        because every kernel it launches is masked per world, and by a host read of
+        the condition outside capture.
+        """
+        if wp.is_conditional_graph_supported():
+            wp.capture_if(condition, body)
+        elif self.device.is_capturing or condition.numpy()[0]:
+            body()
+
+    def _capture_while(self, condition: wp.array, body: Callable[[], None], max_iterations: int) -> None:
+        """Loop ``body`` while ``condition[0]`` is non-zero.
+
+        Uses a conditional graph node where the platform has them. Where it does not
+        (HIP/ROCm), the loop is unrolled to ``max_iterations`` under graph capture
+        (the loop's kernels are masked per world, so iterations past convergence are
+        no-ops) and checked on the host outside capture.
+        """
+        if wp.is_conditional_graph_supported():
+            wp.capture_while(condition, body)
+            return
+        for _ in range(max_iterations):
+            if not self.device.is_capturing and not condition.numpy()[0]:
+                break
+            body()
+
     def run_fk_solve(
         self,
         actuator_q: wp.array[wp.float32],
@@ -2481,10 +2515,14 @@ class ForwardKinematicsSolver:
 
         # Initialize incremental solve
         if self.config.use_incremental_solve:
-            wp.capture_if(self.data.gauss_newton.loop_condition, lambda: self._initialize_incremental_solve(body_q))
+            self._capture_if(self.data.gauss_newton.loop_condition, lambda: self._initialize_incremental_solve(body_q))
 
         # Main loop
-        wp.capture_while(self.data.gauss_newton.loop_condition, lambda: self._run_newton_iteration(body_q))
+        self._capture_while(
+            self.data.gauss_newton.loop_condition,
+            lambda: self._run_newton_iteration(body_q),
+            self.config.max_newton_iterations,
+        )
 
         # Velocity solve, for worlds where FK ran and was successful
         if body_u is not None:
