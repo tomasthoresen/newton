@@ -584,7 +584,9 @@ class ConjugateSolver(Generic[ScalarType, IndexType]):
         self.Mi = Mi
         self.device = A.device
         self.active_dims = active_dims if active_dims is not None else A.active_dims
-        self.use_graph_conditionals = use_graph_conditionals
+        # Conditional graph nodes are unavailable on some platforms (HIP/ROCm); take
+        # the unrolled fixed-iteration path there so captured solves still work.
+        self.use_graph_conditionals = use_graph_conditionals and wp.is_conditional_graph_supported()
 
         self.world_active = world_active
         self.atol = atol
