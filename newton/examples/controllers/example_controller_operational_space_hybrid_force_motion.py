@@ -352,6 +352,10 @@ class Example:
 
         self._graph = None
         if self.controller.is_graphable() and self.device.is_cuda:
+            # Run the step once before capturing it, so kernel modules are loaded and the
+            # buffers the controller creates lazily exist outside the capture; a graph whose
+            # first execution is the capture itself fails to instantiate on some platforms.
+            self._gpu_step()
             with wp.ScopedCapture() as capture:
                 self._gpu_step()
             self._graph = capture.graph

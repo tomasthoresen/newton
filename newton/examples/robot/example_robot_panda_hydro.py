@@ -385,12 +385,18 @@ class Example:
 
     def capture_ik(self):
         self.graph_ik = None
+        # Run the solve once before capturing it (see capture below).
+        self.ik_solver.step(self.joint_q_ik, self.joint_q_ik, iterations=self.ik_iters)
         with wp.ScopedCapture() as capture:
             self.ik_solver.step(self.joint_q_ik, self.joint_q_ik, iterations=self.ik_iters)
         self.graph_ik = capture.graph
 
     def capture(self):
         self.graph = None
+        # Run the body once before capturing it, so kernel modules are loaded and lazily
+        # created buffers exist outside the capture; a graph whose first execution is the
+        # capture itself fails to instantiate on some platforms.
+        self.simulate()
         with wp.ScopedCapture() as capture:
             self.simulate()
         self.graph = capture.graph
