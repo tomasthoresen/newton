@@ -30,6 +30,7 @@ from ...linalg.conjugate import BatchedLinearOperator, CGSolver
 from ...linalg.factorize.llt_blocked_semi_sparse import SemiSparseBlockCholeskySolverBatched
 from ...linalg.sparse_matrix import BlockDType, BlockSparseMatrices
 from ...linalg.sparse_operator import BlockSparseLinearOperators
+from ...utils import logger as msg
 from ...utils.tile import get_block_dim, get_num_tiles, get_tile_size
 from ...utils.world_equivalence import DiscreteSignature, compute_equivalence_classes
 from .kernels import (
@@ -128,6 +129,7 @@ class ForwardKinematicsSolver:
         """Solver config"""
 
         self.graph: wp.Graph | None = None
+        self._warned_eager_fallback: bool = False
         """Cuda graph for the convenience function with verbosity options"""
 
         # Note: there are many other internal data members below, which are not documented here
@@ -2084,12 +2086,12 @@ class ForwardKinematicsSolver:
 
         Uses a conditional graph node where the platform has them. Where it does not
         (HIP/ROCm), the body runs unconditionally under graph capture, which is safe
-        because every kernel it launches is masked per world, and by a host read of
-        the condition outside capture.
+        because its results are only consumed by kernels that are masked per world,
+        and by a host read of the condition outside capture.
         """
         if wp.is_conditional_graph_supported():
             wp.capture_if(condition, body)
-        elif self.device.is_capturing or condition.numpy()[0]:
+        elif wp.get_device(self.device).is_capturing or condition.numpy()[0]:
             body()
 
     def _capture_while(self, condition: wp.array, body: Callable[[], None], max_iterations: int) -> None:
@@ -2104,7 +2106,7 @@ class ForwardKinematicsSolver:
             wp.capture_while(condition, body)
             return
         for _ in range(max_iterations):
-            if not self.device.is_capturing and not condition.numpy()[0]:
+            if not wp.get_device(self.device).is_capturing and not condition.numpy()[0]:
                 break
             body()
 
@@ -2292,7 +2294,18 @@ class ForwardKinematicsSolver:
         assert actuators_u is None or actuators_u.device == self.device
         assert bodies_u is None or bodies_u.device == self.device
 
-        # Run solve (with or without graph)
+        # Run solve (with or without graph). Without conditional graph nodes a captured
+        # solve would unroll every loop to its maximum, which for large mechanisms records
+        # graphs of 10^5 nodes that the platform cannot launch reliably; run eagerly there,
+        # where the loop conditions are read on the host and iterate only as far as needed.
+        if use_graph and not wp.is_conditional_graph_supported():
+            if not self._warned_eager_fallback and wp.get_device(self.device).is_cuda:
+                msg.warning(
+                    "Graph conditionals are unavailable on this platform; "
+                    "the forward-kinematics solve runs eagerly instead of as a captured graph."
+                )
+                self._warned_eager_fallback = True
+            use_graph = False
         if use_graph:
             if self.graph is None:
                 wp.capture_begin(self.device)
