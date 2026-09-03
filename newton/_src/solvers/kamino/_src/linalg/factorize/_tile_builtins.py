@@ -77,7 +77,7 @@ constexpr int Rows = OutLayout::Shape::dim(0);
 constexpr int Cols = OutLayout::Shape::dim(1);
 constexpr int K = LeftLayout::Shape::dim(0);
 
-#if defined(__CUDA_ARCH__)
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
 __shared__ T left_values[K * Rows];
 __shared__ T right_values[K * Cols];
 #else
