@@ -31,7 +31,14 @@ import warp as wp
 from ......core.types import override
 from ...core.types import FloatType, to_warp_int32_array
 from ..core import DenseLinearOperatorData, DenseSquareMultiLinearInfo
-from ..linear import DirectSolver
+from ..linear import (
+    LLT_FACTORIZE_STATIC_BYTES,
+    LLT_SOLVE_STATIC_BYTES,
+    DirectSolver,
+    fit_tile_block_size,
+    llt_factorize_dynamic_bytes,
+    llt_solve_dynamic_bytes,
+)
 from . import rcm_batch as _rcm_batch
 from .llt_blocked_rcm import (
     llt_blocked_rcm_factorize,
@@ -161,6 +168,14 @@ class LLTBlockedRCMSolver(DirectSolver[wp.float32, wp.int32]):
         self._reorder_attached_to: wp.array[dtype] | None = None
 
         # Cache the fixed block/tile dimensions
+        # Capped to the device's shared-memory budget, as in LLTBlockedSolver
+        block_size = fit_tile_block_size(
+            block_size,
+            lambda bs: max(llt_factorize_dynamic_bytes(bs), 4 * bs * bs * 4),
+            LLT_FACTORIZE_STATIC_BYTES,
+            device,
+        )
+        block_size = fit_tile_block_size(block_size, llt_solve_dynamic_bytes, LLT_SOLVE_STATIC_BYTES, device)
         self._block_size: int = block_size
         self._solve_block_dim: int = solve_block_dim
         self._factorize_block_dim: int = factorize_block_dim
