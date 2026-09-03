@@ -59,7 +59,7 @@ import warp as wp
 
 
 @wp.func_native("""
-#if defined(__CUDA_ARCH__)
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
 __syncthreads();
 #endif
 """)
