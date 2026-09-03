@@ -14,6 +14,7 @@ from typing import Any, Generic
 
 import warp as wp
 
+from ..utils import logger as msg
 from . import blas
 from .core import DenseLinearOperatorData
 from .sparse_matrix import BlockSparseMatrices
@@ -587,6 +588,11 @@ class ConjugateSolver(Generic[ScalarType, IndexType]):
         # Conditional graph nodes are unavailable on some platforms (HIP/ROCm); take
         # the unrolled fixed-iteration path there so captured solves still work.
         self.use_graph_conditionals = use_graph_conditionals and wp.is_conditional_graph_supported()
+        if use_graph_conditionals and not self.use_graph_conditionals and wp.get_device(self.device).is_cuda:
+            msg.warning(
+                "Graph conditionals are unavailable on this platform, "
+                "using unrolled for-loops over max iterations in the conjugate solver."
+            )
 
         self.world_active = world_active
         self.atol = atol
