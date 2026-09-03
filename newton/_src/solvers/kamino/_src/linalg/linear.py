@@ -14,6 +14,7 @@ intra-system parallelism may be exploited.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any, Generic
 
 import numpy as np
@@ -573,6 +574,52 @@ class LLTSequentialSolver(DirectSolver[ScalarType, IndexType]):
         )
 
 
+# Shared-memory footprints of the blocked Cholesky kernels, per block size ``bs`` and scalar
+# size ``nbytes``, read from Warp's kernel hooks (dynamic part) and its launch report (static
+# part) on an AMD gfx1151 device:
+#   factorization: five block-sized tiles, 5*bs*bs*nbytes dynamic (81,920 B at 64), about 0.5 KB static;
+#   solve and solve in place: three tiles plus a column, 3*bs*(bs+1)*nbytes dynamic (49,920 B
+#   at 64), about 17.5 KB static at 128 to 256 threads;
+#   RCM parallel panel: four tiles, 4*bs*bs*nbytes dynamic.
+# The static reserves below round those up. A 64-wide factorization needs 80 KB, which fits
+# CUDA's opt-in budget but not the 64 KB of AMD gfx11 devices.
+LLT_FACTORIZE_STATIC_BYTES = 2048
+LLT_SOLVE_STATIC_BYTES = 18432
+
+
+def llt_factorize_dynamic_bytes(block_size: int, nbytes: int = 4) -> int:
+    return 5 * block_size * block_size * nbytes
+
+
+def llt_solve_dynamic_bytes(block_size: int, nbytes: int = 4) -> int:
+    return 3 * block_size * (block_size + 1) * nbytes
+
+
+def fit_tile_block_size(
+    block_size: int,
+    dynamic_bytes: Callable[[int], int],
+    static_bytes: int,
+    device: wp.DeviceLike | None,
+    minimum: int = 16,
+) -> int:
+    """Halve ``block_size`` until ``dynamic_bytes(block_size) + static_bytes`` fits the
+    device's shared memory per block.
+
+    Devices with a 64 KB limit, such as AMD gfx11 parts, cannot launch the 64-wide blocked
+    Cholesky factorization that fits comfortably in CUDA's opt-in budget, so the tile is
+    reduced there and left alone everywhere else. CPU devices have no limit. The sizes are
+    decided from the footprint model above rather than by building candidates, because a
+    candidate that fails to compile would poison the shared kernel module.
+    """
+    dev = wp.get_device(device)
+    budget = dev.max_shared_memory_per_block if dev.is_cuda else 0
+    if budget <= 0:
+        return block_size
+    while block_size > minimum and dynamic_bytes(block_size) + static_bytes > budget:
+        block_size //= 2
+    return block_size
+
+
 class LLTBlockedSolver(DirectSolver[ScalarType, IndexType]):
     """
     A Blocked LLT (i.e. Cholesky) factorization class computing each matrix block with Tile-based parallelism.
@@ -626,13 +673,23 @@ class LLTBlockedSolver(DirectSolver[ScalarType, IndexType]):
 
         self._factorize_block_size: int = factorize_block_size
         self._solve_block_size: int = solve_block_size
+        # The kernels use tile sizes capped to the device's shared-memory budget
+        # (see fit_tile_block_size); the requested sizes above stay as configured.
+        nbytes = wp.types.type_size_in_bytes(dtype)
+        self._factorize_tile_size: int = fit_tile_block_size(
+            factorize_block_size, lambda bs: llt_factorize_dynamic_bytes(bs, nbytes), LLT_FACTORIZE_STATIC_BYTES, device
+        )
+        self._solve_tile_size: int = fit_tile_block_size(
+            solve_block_size, lambda bs: llt_solve_dynamic_bytes(bs, nbytes), LLT_SOLVE_STATIC_BYTES, device
+        )
+
         self._solve_block_dim: int = solve_block_dim
         self._factorize_block_dim: int = factorize_block_dim
 
         # Create the factorization and solve kernels
-        self._factorize_kernel = factorize.make_llt_blocked_factorize_kernel(self._factorize_block_size)
-        self._solve_kernel = factorize.make_llt_blocked_solve_kernel(self._solve_block_size)
-        self._solve_inplace_kernel = factorize.make_llt_blocked_solve_inplace_kernel(self._solve_block_size)
+        self._factorize_kernel = factorize.make_llt_blocked_factorize_kernel(self._factorize_tile_size)
+        self._solve_kernel = factorize.make_llt_blocked_solve_kernel(self._solve_tile_size)
+        self._solve_inplace_kernel = factorize.make_llt_blocked_solve_inplace_kernel(self._solve_tile_size)
 
         # Initialize base class members
         super().__init__(
