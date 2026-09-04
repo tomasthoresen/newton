@@ -363,6 +363,13 @@ class Example:
         # persistent buffer, before every replay -- see step().
         self.graph = None
         if self.controller.is_graphable() and self.device.is_cuda:
+            # Run the step once before capturing it, so kernel modules are loaded and the
+            # buffers the controller creates lazily exist outside the capture; a graph whose
+            # first execution is the capture itself fails to instantiate on some platforms.
+            # The desired pose is assigned first, as in step(), so this step holds the
+            # arms at their ready pose instead of driving them toward an all-zero target.
+            self._assign_desired_tool_pose()
+            self._simulate()
             with wp.ScopedCapture() as capture:
                 self._simulate()
             self.graph = capture.graph
@@ -560,7 +567,7 @@ class Example:
         self.controller.step(inputs=self._input, outputs=self._output, dt=self.frame_dt)
         newton.eval_fk(self.model, self.state_0.joint_q, self.state_0.joint_qd, self.state_0)
 
-    def step(self):
+    def _assign_desired_tool_pose(self):
         # The gizmo drag is read on the host and assigned into its
         # persistent device buffer here, outside the graph -- everything
         # downstream of it (_simulate) is captured once and just replayed.
@@ -569,6 +576,9 @@ class Example:
             pose[i, :3] = wp.transform_get_translation(tf)
             pose[i, 3:] = wp.transform_get_rotation(tf)
         self._input.desired_tool_pose_world.assign(pose)
+
+    def step(self):
+        self._assign_desired_tool_pose()
 
         if self.graph:
             wp.capture_launch(self.graph)
