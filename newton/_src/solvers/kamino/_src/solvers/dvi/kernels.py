@@ -390,7 +390,7 @@ def _set_dvi_bilateral_active_dim(
 
 
 @wp.func_native("""
-#if defined(__CUDA_ARCH__)
+#if defined(__CUDA_ARCH__) || defined(__HIP__)
 __syncthreads();
 #endif
 """)
