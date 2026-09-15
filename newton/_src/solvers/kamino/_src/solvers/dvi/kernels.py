@@ -396,7 +396,7 @@ def _set_dvi_bilateral_active_dim(
 
 
 @wp.func_native("""
-#if defined(__CUDA_ARCH__)
+#if defined(__CUDA_ARCH__) || defined(__HIP__)
 __syncthreads();
 #endif
 """)
@@ -406,6 +406,8 @@ def _sync_threads(): ...
 @wp.func_native("""
 #if defined(__CUDA_ARCH__)
 __syncwarp(0xffffffffu);
+#elif defined(__HIP__)
+__syncwarp();  // HIP: wavefront fence and barrier; the *_sync mask form needs a 64-bit mask
 #endif
 """)
 def _sync_warp(): ...
@@ -497,6 +499,12 @@ def _assemble_bilateral_contact_response(
     #pragma unroll
     for (int offset = 8; offset > 0; offset >>= 1)
         r += __shfl_xor_sync(0xffffffffu, r, offset, 16);
+    return r;
+#elif defined(__HIP__)
+    float r = value;  // HIP: no 32-bit sync mask; the wave executes in lockstep
+    #pragma unroll
+    for (int offset = 8; offset > 0; offset >>= 1)
+        r += __shfl_xor(r, offset, 16);
     return r;
 #else
     return value;
