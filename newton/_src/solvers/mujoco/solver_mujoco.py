@@ -8057,7 +8057,12 @@ class SolverMuJoCo(SolverBase, CouplingInterface):
             nworld = model.world_count if separate_worlds else 1
             batch_sizes = dict.fromkeys(_MJW_BATCHED_MODEL_FIELDS, nworld) if nworld > 1 else None
             try:
-                self.mjw_model = mujoco_warp.put_model(self.mj_model, batch_sizes=batch_sizes)
+                with warnings.catch_warnings():
+                    if not wp.is_conditional_graph_supported():
+                        # put_model() warns that conditional graph nodes need CUDA 12.4 and
+                        # asks for graph_conditional = False; that is done right below.
+                        warnings.filterwarnings("ignore", message=r"\s*CUDA version < 12\.4 detected")
+                    self.mjw_model = mujoco_warp.put_model(self.mj_model, batch_sizes=batch_sizes)
             finally:
                 # MuJoCo Warp consumes only the compiled runtime policy. Keep
                 # the authoring policy on the CPU model for inspection and MJCF export.
