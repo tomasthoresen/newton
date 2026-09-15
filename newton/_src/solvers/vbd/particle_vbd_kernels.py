@@ -74,6 +74,14 @@ TILE_SIZE_SELF_CONTACT_SOLVE = 8
     r += __shfl_xor_sync(0xffffffffu, r, 2, 16);
     r += __shfl_xor_sync(0xffffffffu, r, 1, 16);
     return r;
+    #elif defined(__HIP__)
+    // HIP: no 32-bit sync mask; the wave executes in lockstep. Same ladder, same order.
+    float r = v;
+    r += __shfl_xor(r, 8, 16);
+    r += __shfl_xor(r, 4, 16);
+    r += __shfl_xor(r, 2, 16);
+    r += __shfl_xor(r, 1, 16);
+    return r;
     #else
     return v;
     #endif
