@@ -1788,6 +1788,12 @@ def _solve_dvi_sparse_inequalities_pgs(
     for (int offset = width / 2; offset > 0; offset >>= 1)
         r += __shfl_xor_sync(0xffffffffu, r, offset, width);
     return r;
+#elif defined(__HIP__)
+    float r = value;  // HIP: no 32-bit sync mask; the wave executes in lockstep
+    #pragma unroll
+    for (int offset = 16; offset > 0; offset >>= 1)
+        r += __shfl_xor(r, offset, 32);
+    return r;
 #else
     return value;
 #endif
@@ -1800,6 +1806,8 @@ def _subgroup_sum(value: float32, width: int32 = 32) -> float32: ...
     """
 #if defined(__CUDA_ARCH__)
     return __shfl_sync(0xffffffffu, value, 0, 32);
+#elif defined(__HIP__)
+    return __shfl(value, 0, 32);
 #else
     return value;
 #endif
@@ -1822,6 +1830,8 @@ def _shuffle_lane_32(value: float32, lane: int32) -> float32: ...
     """
 #if defined(__CUDA_ARCH__)
     __syncwarp(0xffffffffu);
+#elif defined(__HIP__)
+    __syncwarp();  // HIP: wavefront fence and barrier; the *_sync mask form needs a 64-bit mask
 #endif
     """
 )
