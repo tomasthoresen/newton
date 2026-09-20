@@ -587,8 +587,10 @@ class ConjugateSolver(Generic[ScalarType, IndexType]):
         self.active_dims = active_dims if active_dims is not None else A.active_dims
         # Conditional graph nodes are unavailable on some platforms (HIP/ROCm); take
         # the unrolled fixed-iteration path there so captured solves still work.
-        self.use_graph_conditionals = use_graph_conditionals and wp.is_conditional_graph_supported()
-        if use_graph_conditionals and not self.use_graph_conditionals and wp.get_device(self.device).is_cuda:
+        # Only CUDA devices need them: elsewhere wp.capture_while() loops on the host.
+        conditionals_available = not wp.get_device(self.device).is_cuda or wp.is_conditional_graph_supported()
+        self.use_graph_conditionals = use_graph_conditionals and conditionals_available
+        if use_graph_conditionals and not self.use_graph_conditionals:
             msg.warning(
                 "Graph conditionals are unavailable on this platform, "
                 "using unrolled for-loops over max iterations in the conjugate solver."
