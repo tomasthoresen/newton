@@ -243,8 +243,11 @@ class PADMMSolver:
         # Cache high-level solver options shared across all worlds
         self._warmstart = warmstart
         self._use_acceleration = use_acceleration
-        self._use_graph_conditionals = use_graph_conditionals and wp.is_conditional_graph_supported()
-        if use_graph_conditionals and not self._use_graph_conditionals and model.device.is_cuda:
+        # Conditional graph nodes only matter on CUDA devices; elsewhere wp.capture_while() loops on the host.
+        # ModelKamino.device may be a device name or None, so resolve it first.
+        conditionals_available = not wp.get_device(model.device).is_cuda or wp.is_conditional_graph_supported()
+        self._use_graph_conditionals = use_graph_conditionals and conditionals_available
+        if use_graph_conditionals and not self._use_graph_conditionals:
             msg.warning(
                 "Graph conditionals are unavailable on this platform, "
                 "using unrolled for-loops over max iterations in the PADMM solver."
