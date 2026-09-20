@@ -37,7 +37,7 @@ class FloatInterval:
 
 @wp.func_native(
     """
-#if defined(__CUDA_ARCH__)
+#if defined(__CUDA_ARCH__) || defined(__HIP__)
 return nextafterf(value, INFINITY);
 #else
 return __builtin_nextafterf(value, INFINITY);
@@ -52,7 +52,7 @@ def next_float_up(value: float) -> float:
 
 @wp.func_native(
     """
-#if defined(__CUDA_ARCH__)
+#if defined(__CUDA_ARCH__) || defined(__HIP__)
 return nextafterf(value, -INFINITY);
 #else
 return __builtin_nextafterf(value, -INFINITY);
