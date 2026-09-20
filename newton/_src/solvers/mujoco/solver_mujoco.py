@@ -7682,7 +7682,7 @@ class SolverMuJoCo(SolverBase, CouplingInterface):
             self.mj_model.tree_sleep_policy[policy_allowed | policy_init] = mujoco.mjtSleepPolicy.mjSLEEP_AUTO_ALLOWED
             try:
                 with warnings.catch_warnings():
-                    if not wp.is_conditional_graph_supported():
+                    if model.device.is_cuda and not wp.is_conditional_graph_supported():
                         # put_model() warns that conditional graph nodes need CUDA 12.4 and
                         # asks for graph_conditional = False; that is done right below.
                         warnings.filterwarnings("ignore", message=r"\s*CUDA version < 12\.4 detected")
@@ -7691,7 +7691,7 @@ class SolverMuJoCo(SolverBase, CouplingInterface):
                 # MuJoCo Warp consumes only the compiled runtime policy. Keep
                 # the authoring policy on the CPU model for inspection and MJCF export.
                 self.mj_model.tree_sleep_policy[:] = sleep_policies
-            if not wp.is_conditional_graph_supported():
+            if model.device.is_cuda and not wp.is_conditional_graph_supported():
                 # No conditional graph nodes on this platform (e.g. HIP/ROCm);
                 # use mujoco_warp's non-conditional solver loop (the same
                 # fallback path JAX uses).

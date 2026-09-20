@@ -7,6 +7,7 @@ import os
 import tempfile
 import time
 import unittest
+import unittest.mock
 import warnings
 import xml.etree.ElementTree as ET
 from unittest.mock import patch
@@ -7666,6 +7667,14 @@ class TestMuJoCoOptions(unittest.TestCase):
                 jacobian="auto",
                 njmax_nnz=1,
             )
+
+    def test_graph_conditional_kept_on_cpu_device(self):
+        """The platform clamp on ``graph_conditional`` applies to CUDA devices only."""
+        with wp.ScopedDevice("cpu"):
+            model = self._create_multiworld_model(world_count=1)
+            with unittest.mock.patch("warp.is_conditional_graph_supported", return_value=False):
+                solver = SolverMuJoCo(model)
+        self.assertTrue(solver.mjw_model.opt.graph_conditional)
 
     def test_impratio_multiworld_conversion(self):
         """

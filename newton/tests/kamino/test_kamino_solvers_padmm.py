@@ -5,6 +5,7 @@
 
 import unittest
 from typing import Any
+from unittest import mock
 
 import numpy as np
 import warp as wp
@@ -504,6 +505,20 @@ class TestPADMMSolver(unittest.TestCase):
         self.assertEqual(len(solver.config), test.model.size.num_worlds)
         self.assertIs(solver._device, test.model.device)
         self.assertIs(solver.size, test.model.size)
+
+    def test_01b_cpu_model_keeps_graph_conditionals(self):
+        """
+        Test that the platform clamp on graph conditionals applies to CUDA devices only.
+
+        On a CPU device ``wp.capture_while()`` loops on the host, so the early-exit
+        loop must stay enabled where conditional graph nodes are unsupported.
+        """
+        for device in ("cpu", wp.get_device("cpu")):
+            with self.subTest(device=device):
+                model = ModelKamino.from_newton(basics.build_box_on_plane().finalize(device=device))
+                with mock.patch("warp.is_conditional_graph_supported", return_value=False):
+                    solver = PADMMSolver(model=model)
+                self.assertTrue(solver._use_graph_conditionals)
 
     def test_02_padmm_solve(self):
         """
