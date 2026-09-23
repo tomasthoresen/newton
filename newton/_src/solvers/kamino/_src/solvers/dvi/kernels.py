@@ -522,6 +522,12 @@ def _subgroup_sum_16(value: float32) -> float32: ...
     for (int offset = 16; offset > 0; offset >>= 1)
         r = min(r, __shfl_xor_sync(0xffffffffu, r, offset));
     return r;
+#elif defined(__HIP__)
+    int r = value;  // HIP: no 32-bit sync mask; the wave executes in lockstep
+    #pragma unroll
+    for (int offset = 16; offset > 0; offset >>= 1)
+        r = min(r, __shfl_xor(r, offset, 32));
+    return r;
 #else
     return value;
 #endif
