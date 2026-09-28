@@ -238,6 +238,12 @@ def _scatter_bilateral_solution(
     for (int offset = 16; offset > 0; offset >>= 1)
         r = fmaxf(r, __shfl_xor_sync(0xffffffffu, r, offset, 32));
     return r;
+#elif defined(__HIP__)
+    float r = value;  // HIP: no 32-bit sync mask; the wave executes in lockstep
+    #pragma unroll
+    for (int offset = 16; offset > 0; offset >>= 1)
+        r = fmaxf(r, __shfl_xor(r, offset, 32));
+    return r;
 #else
     return value;
 #endif
