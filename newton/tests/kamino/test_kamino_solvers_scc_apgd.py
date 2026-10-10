@@ -390,6 +390,8 @@ class TestSCCAPGD(NewtonTestCase):
         """Capture each loop body once, even when all three iteration budgets grow."""
         if not wp.is_cuda_available():
             self.skipTest("CUDA graph structure requires a CUDA device")
+        if wp.get_device("cuda:0").is_hip:
+            self.skipTest("HIP emulates conditional graph nodes by splitting the capture; there are no WHILE nodes to count")
         counts = []
         for budget in (2, 128):
             solver, problem = _problem(
