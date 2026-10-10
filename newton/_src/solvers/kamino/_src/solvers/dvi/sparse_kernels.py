@@ -1791,8 +1791,8 @@ def _solve_dvi_sparse_inequalities_pgs(
 #elif defined(__HIP__)
     float r = value;  // HIP: no 32-bit sync mask; the wave executes in lockstep
     #pragma unroll
-    for (int offset = 16; offset > 0; offset >>= 1)
-        r += __shfl_xor(r, offset, 32);
+    for (int offset = width / 2; offset > 0; offset >>= 1)
+        r += __shfl_xor(r, offset, width);
     return r;
 #else
     return value;
@@ -1819,6 +1819,8 @@ def _broadcast_lane_0_32(value: float32) -> float32: ...
 @wp.func_native("""
 #if defined(__CUDA_ARCH__)
     return __shfl_sync(0xffffffffu, value, lane, 32);
+#elif defined(__HIP__)
+    return __shfl(value, lane, 32);
 #else
     return value;
 #endif
