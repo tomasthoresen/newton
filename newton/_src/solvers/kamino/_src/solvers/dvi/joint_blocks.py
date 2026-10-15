@@ -219,6 +219,12 @@ for (int delta = 16; delta > 0; delta >>= 1) {
     bits |= __shfl_xor_sync(0xffffffff, bits, delta);
 }
 return bits;
+#elif defined(__HIP__)
+unsigned long long bits = (unsigned long long)value;
+for (int delta = 16; delta > 0; delta >>= 1) {
+    bits |= __shfl_xor(bits, delta, 32);
+}
+return bits;
 #else
 return value;
 #endif
