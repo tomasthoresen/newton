@@ -7,6 +7,7 @@ from functools import cache
 
 import warp as wp
 
+from ._hip import func_native
 from .friction import contact_tangent_basis
 from .kernels import (
     PGS_CONSTRAINT_TYPE_JOINT_LIMIT,
@@ -264,7 +265,7 @@ def _get_sparse_contact_response_kernel(
         .replace("$N", str(n))
     )
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def project_native(
         tid: int,
         body_a: int,
@@ -430,7 +431,7 @@ def _get_sparse_contact_response_kernel(
     return wp.kernel(enable_backward=False, module="unique", module_options=WARP_DETERMINISM_OFF)(contact_kernel)
 
 
-@wp.func_native(
+@func_native(
     """
     const int group = tid >> 5;
     if (group >= group_to_art.shape[0]) return;

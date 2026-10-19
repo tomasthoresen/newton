@@ -7,6 +7,7 @@ from functools import cache
 
 import warp as wp
 
+from ._hip import func_native
 from .friction import FRICTION_PAIR_CUDA
 from .kernels import (
     PGS_CONSTRAINT_TYPE_CONTACT,
@@ -320,7 +321,7 @@ def _get_pgs_solve_sparse_kernel(
 """
     )
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def solve_native(
         world: int,
         world_constraint_count: wp.array[int],

@@ -13,6 +13,7 @@ from functools import cache
 import numpy as np
 import warp as wp
 
+from ._hip import func_native
 from .kernels import WARP_DETERMINISM_OFF
 
 wp.set_module_options(WARP_DETERMINISM_OFF)
@@ -368,7 +369,7 @@ def _get_crba_sparse_factor_kernel(dof_count: int, nonzero_count: int, *, warps_
     }}
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def factor_native(
         tid: int,
         group_to_art: wp.array[int],
@@ -420,7 +421,7 @@ def _get_crba_sparse_factor_kernel(dof_count: int, nonzero_count: int, *, warps_
     return wp.kernel(enable_backward=False, module="unique", module_options=WARP_DETERMINISM_OFF)(factor_kernel)
 
 
-@wp.func_native("""
+@func_native("""
     const int group = tid >> 5;
     if (group >= group_to_art.shape[0]) return;
 #if defined(__CUDA_ARCH__)
