@@ -25,6 +25,7 @@ from ...sim.articulation import eval_fk, eval_jacobian, eval_mass_matrix
 from ..coupled.interface import CouplingInterface
 from ..solver import SolverBase
 from . import contact_compliance as _contact_compliance
+from ._hip import func_native
 from ._testing import current_kernel_overrides
 from .contact_torsion import (
     configure_contact_torsion,
@@ -12327,7 +12328,7 @@ def _get_composite_inertia_warp_kernel(device_arch: str, warps_per_block: int) -
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def composite_inertia_warp_native(
         block: int,
         composite_articulation_count: int,
@@ -12436,7 +12437,7 @@ def _get_joint_limit_warp_kernel(size: int, device_arch: str, warps_per_block: i
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def joint_limit_warp_native(
         block: int,
         articulation_count: int,
@@ -12573,7 +12574,7 @@ def _get_joint_friction_warp_kernel(size: int, device_arch: str, warps_per_block
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def joint_friction_warp_native(
         block: int,
         articulation_count: int,
@@ -12914,7 +12915,7 @@ def _get_crba_cholesky_warp_kernel(n_dofs: int, device_arch: str, *, warps_per_b
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def crba_cholesky_warp_native(
         tid: int,
         n_arts: int,
@@ -13138,7 +13139,7 @@ def _get_inverse_cholesky_register_kernel(n_dofs: int, device_arch: str, *, lowe
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def inverse_cholesky_register_native(
         tid: int,
         L_group: wp.array3d[float],
@@ -13312,7 +13313,7 @@ def _get_paired_hinv_jt_kernel(
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def paired_hinv_jt_native(
         primary_group: int,
         primary_Hinv: wp.array3d[float],
@@ -13758,7 +13759,7 @@ def _get_pgs_solve_paired_factor_kernel(
             "                ? s_rhs[i] + compliance_dense_gamma.data[off + i] * s_lam[i] : s_rhs[i]);",
         )
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def pgs_solve_paired_factor_native(
         world: int,
         world_constraint_count: wp.array[int],
@@ -13975,7 +13976,7 @@ def _get_pack_mf_meta_kernel(free_body_constraint_max: int, device_arch: str) ->
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def pack_mf_meta_native(
         world: int,
         mf_constraint_count: wp.array[int],
@@ -14898,7 +14899,7 @@ def _get_pgs_solve_local_owned_kernel(
         snippet = snippet.replace("#if defined(__CUDA_ARCH__)", "#if defined(__CUDA_ARCH__)\n" + FRICTION_PAIR_CUDA, 1)
     snippet = snippet.replace("__syncwarp();", "__syncwarp(MASK);")
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def pgs_solve_local_internal_native(
         candidate: int,
         candidate_articulations: wp.array[int],
@@ -15962,7 +15963,7 @@ def _get_pgs_solve_mf_gs_kernel(
             + "_local",
         )
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def pgs_solve_mf_gs_native(
         world: int,
         world_constraint_count: wp.array[int],
@@ -16202,7 +16203,7 @@ def _mf_gs_skip_local_kernel(snippet: str, name: str) -> "wp.Kernel":
     assigns to a local solve.
     """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def pgs_solve_mf_gs_local_native(
         world: int,
         local_solve_owner: wp.array[int],
@@ -16624,7 +16625,7 @@ def _get_color_propagation_prebuild_kernel(
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def color_propagation_prebuild_native(
         tile: int,
         world_count: int,
@@ -16733,7 +16734,7 @@ def _get_colored_friction_setup_kernel(
 """
     snippet = snippet.replace("#if defined(__CUDA_ARCH__)", "#if defined(__CUDA_ARCH__)\n" + FRICTION_PAIR_CUDA, 1)
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def colored_friction_setup_native(
         tid: int,
         world_color_offsets: wp.array[int],
@@ -16841,7 +16842,7 @@ def _get_colored_payload_pack_kernel(
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def colored_payload_pack_native(
         tid: int,
         world_color_offsets: wp.array[int],
@@ -18267,7 +18268,7 @@ def _get_pgs_solve_propagation_colored_warp_kernel(
         "#if defined(__CUDA_ARCH__)", "#if defined(__CUDA_ARCH__)\n" + FRICTION_PAIR_CUDA + coupled, 1
     )
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def pgs_solve_propagation_colored_warp_native(
         tile: int,
         world_count: int,
@@ -18764,7 +18765,7 @@ def _get_pgs_solve_propagation_colored_block_kernel(
         "#if defined(__CUDA_ARCH__)", "#if defined(__CUDA_ARCH__)\n" + FRICTION_PAIR_CUDA + coupled, 1
     )
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def pgs_solve_propagation_colored_block_native(
         tile: int,
         world_count: int,
@@ -19084,7 +19085,7 @@ def _get_pgs_solve_propagation_contact_kernel(
             "#if defined(__CUDA_ARCH__)", "#if defined(__CUDA_ARCH__)\n" + _PROPAGATION_APPLY_ROW_CUDA, 1
         )
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def pgs_solve_propagation_native(
         tile: int,
         world_count: int,
@@ -19594,7 +19595,7 @@ def _get_factor_propagation_tree_revolute_kernel(
     else:
         snippet = snippet.replace("//FREE_ROOT_DECL", "").replace("//FREE_ROOT_FACTOR", "")
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def factor_propagation_tree_revolute_native(
         group_idx: int,
         group_to_art: wp.array[int],
@@ -19841,7 +19842,7 @@ def _get_propagation_tree_body_response_revolute_kernel(
     else:
         snippet = snippet.replace("//FREE_ROOT_RESPONSE", "")
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def propagation_tree_body_response_revolute_native(
         group_idx: int,
         group_to_art: wp.array[int],
@@ -20198,7 +20199,7 @@ def _get_propagate_tree_impulses_revolute_kernel(
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def propagate_tree_impulses_revolute_native(
         group_idx: int,
         group_to_art: wp.array[int],
@@ -20625,7 +20626,7 @@ def _get_propagation_tree_cached_response_kernel(
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def propagation_tree_cached_response_native(
         group_idx: int,
         group_to_art: wp.array[int],
@@ -20813,7 +20814,7 @@ def _get_propagation_cached_gemv_kernel(
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def propagation_cached_gemv_native(
         tile: int,
         world_count: int,
@@ -20973,7 +20974,7 @@ def _get_refresh_propagation_tree_body_qd_warp_kernel(size: int, max_joints: int
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def refresh_propagation_tree_body_qd_warp_native(
         group_idx: int,
         group_to_art: wp.array[int],
@@ -21206,7 +21207,7 @@ def _get_build_independent_sparse_contact_groups_kernel(
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def build_independent_sparse_contact_groups_native(
         world: int,
         lane: int,
@@ -21757,7 +21758,7 @@ def _get_pgs_solve_sparse_diagonal_kernel(
             "                ? s_rhs[row] + compliance_gamma.data[row_base + row] * s_lambda[row] : s_rhs[row]);\n",
         )
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def pgs_solve_sparse_diagonal_native(
         world: int,
         world_constraint_count: wp.array[int],
