@@ -1887,6 +1887,11 @@ def test_sweep_variants_match_the_reference_bitwise(test, device):
 
     Without regularization the row-weight buffer is a placeholder the sweeps must not read.
     """
+    if getattr(wp.get_device(device), "is_hip", False):
+        test.skipTest(
+            "HIP's compiler contracts multiply-adds differently in the sweep variants and the reference; "
+            "they agree bitwise only with contraction disabled"
+        )
     for regularization in (0.0, 0.01):
         model, contacts, control, start = _settled_heap(device, regularization)
         test.assertGreater(int(contacts.rigid_contact_count.numpy()[0]), 400)
