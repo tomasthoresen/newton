@@ -15,6 +15,7 @@ from ...sim.articulation import (
 from ...sim.contacts import GENERATION_SENTINEL
 from ..featherstone.kernels import jcalc_motion
 from ..solver import contact_friction_mode
+from ._hip import func_native
 from .friction import contact_tangent_basis
 from .friction_patches import WARP_DETERMINISM_OFF, FrictionPatches, warmstart_dt_scale
 
@@ -93,7 +94,7 @@ def reserve_world_rows(
     return first
 
 
-@wp.func_native("""
+@func_native("""
 #if defined(__CUDA_ARCH__)
     __shared__ int warp_totals[32];
     const int lane = thread & 31;
@@ -1566,7 +1567,7 @@ def publish_fk_id_source(
     published_token[0] = source_token
 
 
-@wp.func_native("""
+@func_native("""
 #if defined(__CUDA_ARCH__)
     __syncwarp();
 #endif

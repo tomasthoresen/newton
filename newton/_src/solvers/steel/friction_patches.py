@@ -37,6 +37,7 @@ from ...core.reset import reset_world_selected
 from ...math.spatial import velocity_at_point
 from ...sim.enums import ShapeFrictionMode
 from ..solver import contact_friction_mode
+from ._hip import func_native
 from .friction import contact_tangent_basis
 
 # Steel orders its own order-dependent atomics; Warp's deterministic lowering would overflow on its loops.
@@ -442,7 +443,7 @@ _FLOOD_CUDA = _FLOOD_CUDA.replace(
 )
 
 
-@wp.func_native(_FLOOD_CUDA)
+@func_native(_FLOOD_CUDA)
 def _flood_native(
     tile: int,
     n_tiles: int,
