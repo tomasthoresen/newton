@@ -13,6 +13,7 @@ from ...sim.articulation import (
 )
 from ...sim.contacts import GENERATION_SENTINEL
 from ..featherstone.kernels import jcalc_motion
+from ._hip import func_native
 from .friction import contact_tangent_basis, friction_pair_candidate
 from .friction_patches import FrictionPatches, warmstart_dt_scale
 
@@ -1026,7 +1027,7 @@ def eval_rigid_fk_id(
         cached_child = child
 
 
-@wp.func_native("""
+@func_native("""
 #if defined(__CUDA_ARCH__)
     __syncwarp();
 #endif

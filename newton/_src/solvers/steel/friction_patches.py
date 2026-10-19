@@ -35,6 +35,7 @@ import warp as wp
 
 from ...core.reset import reset_world_selected
 from ...math.spatial import velocity_at_point
+from ._hip import func_native
 from .friction import contact_tangent_basis
 
 
@@ -425,7 +426,7 @@ _FLOOD_CUDA = _FLOOD_CUDA.replace(
 )
 
 
-@wp.func_native(_FLOOD_CUDA)
+@func_native(_FLOOD_CUDA)
 def _flood_native(
     tile: int,
     n_tiles: int,
