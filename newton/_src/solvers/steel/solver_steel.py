@@ -10992,7 +10992,7 @@ def _get_joint_friction_warp_kernel(size: int, device_arch: str, warps_per_block
 #endif
 """
 
-    @wp.func_native(snippet)
+    @func_native(snippet)
     def joint_friction_warp_native(
         block: int,
         articulation_count: int,
