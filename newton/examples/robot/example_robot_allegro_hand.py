@@ -29,6 +29,7 @@ from newton import JointTargetMode, ModelFlags
 @wp.kernel
 def move_hand(
     joint_q_start: wp.array[wp.int32],
+    joint_qd_start: wp.array[wp.int32],
     joint_limit_lower: wp.array[wp.float32],
     joint_limit_upper: wp.array[wp.float32],
     sim_time: wp.array[wp.float32],
@@ -42,13 +43,17 @@ def move_hand(
     root_joint_id = world_id * 22
     t = sim_time[world_id]
 
-    root_dof_start = joint_q_start[root_joint_id]
+    # targets follow the coordinate layout, limits the DOF layout; they differ once a world
+    # contains a free joint (the cube's quaternion has one more coordinate than DOFs)
+    root_coord_start = joint_q_start[root_joint_id]
+    root_dof_start = joint_qd_start[root_joint_id]
 
     # animate the finger joints
     for i in range(20):
+        qi = root_coord_start + i
         di = root_dof_start + i
         target = wp.sin(t + float(i * 6) * 0.1) * 0.08 + 0.3
-        joint_target_q[di] = wp.clamp(target, joint_limit_lower[di], joint_limit_upper[di])
+        joint_target_q[qi] = wp.clamp(target, joint_limit_lower[di], joint_limit_upper[di])
 
     # animate the root joint transform
     q = wp.quat_from_axis_angle(wp.vec3(1.0, 0.0, 0.0), wp.sin(t) * 0.1)
@@ -196,6 +201,7 @@ class Example:
                 dim=self.world_count,
                 inputs=[
                     self.model.joint_q_start,
+                    self.model.joint_qd_start,
                     self.model.joint_limit_lower,
                     self.model.joint_limit_upper,
                     self.world_time,
