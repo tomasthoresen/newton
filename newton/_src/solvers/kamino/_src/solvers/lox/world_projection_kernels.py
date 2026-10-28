@@ -120,7 +120,7 @@ class NoAccelerationState:
 
 
 @wp.func_native("""
-#if defined(__CUDA_ARCH__)
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
 __syncthreads();
 #endif
 """)
@@ -179,6 +179,10 @@ def _make_shared_world_twists(body_capacity: int):
     snippet = f"""
 #if defined(__CUDA_ARCH__)
 __shared__ wp::vec_t<6, wp::float32> twists[{body_capacity}];
+return (uint64_t)twists - uint64_t(body_offset) * sizeof(wp::vec_t<6, wp::float32>);
+#elif defined(__HIP_DEVICE_COMPILE__)
+// HIP does not allow __shared__ variables of a type with a constructor; declare the storage as raw bytes.
+__shared__ alignas(wp::vec_t<6, wp::float32>) unsigned char twists[{body_capacity} * sizeof(wp::vec_t<6, wp::float32>)];
 return (uint64_t)twists - uint64_t(body_offset) * sizeof(wp::vec_t<6, wp::float32>);
 #else
 return 0;
