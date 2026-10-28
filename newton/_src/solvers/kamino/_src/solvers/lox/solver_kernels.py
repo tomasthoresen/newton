@@ -48,7 +48,7 @@ wp.set_module_options({"enable_backward": False})
 
 @wp.func_native("""
 if (value > 0.0f) {
-#if defined(__CUDA_ARCH__)
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
     atomicMax(reinterpret_cast<int*>(wp::address(values, index)), __float_as_int(value));
 #else
     float* address = wp::address(values, index);

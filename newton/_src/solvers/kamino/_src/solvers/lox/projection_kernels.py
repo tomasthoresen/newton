@@ -1496,6 +1496,9 @@ float result = value;
 #if defined(__CUDA_ARCH__)
 for (int offset = 16; offset > 0; offset /= 2)
     result = fmaxf(result, __shfl_xor_sync(0xffffffff, result, offset));
+#elif defined(__HIP_DEVICE_COMPILE__)
+for (int offset = 16; offset > 0; offset /= 2)
+    result = fmaxf(result, __shfl_xor(result, offset, 32));
 #endif
 return result;
 """)
