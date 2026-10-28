@@ -178,6 +178,14 @@ const bool same_run = lane + offset < lanes && other_a == body_a && other_b == b
 if (!__any_sync(mask, same_run))
     break;
 """
+# HIP has no sync-mask shuffles; the shuffles stay within the 32-lane group and the ballot is shifted to it.
+_BODY_RUN_STEP_HIP = """
+const int other_a = __shfl_down(body_a, offset, 32);
+const int other_b = __shfl_down(body_b, offset, 32);
+const bool same_run = lane + offset < lanes && other_a == body_a && other_b == body_b;
+if (((__ballot(same_run) >> (__lane_id() & ~31)) & mask) == 0)
+    break;
+"""
 
 
 @wp.func_native(f"""
@@ -188,6 +196,18 @@ for (int offset = 1; offset < lanes; offset <<= 1) {{
 {_BODY_RUN_STEP}
     for (int axis = 0; axis < 6; ++axis) {{
         const float other = __shfl_down_sync(mask, sum.c[axis], offset);
+        if (same_run)
+            sum.c[axis] += other;
+    }}
+}}
+return sum;
+#elif defined(__HIP_DEVICE_COMPILE__)
+{_BODY_RUN_LANES}
+auto sum = value;
+for (int offset = 1; offset < lanes; offset <<= 1) {{
+{_BODY_RUN_STEP_HIP}
+    for (int axis = 0; axis < 6; ++axis) {{
+        const float other = __shfl_down(sum.c[axis], offset, 32);
         if (same_run)
             sum.c[axis] += other;
     }}
@@ -213,6 +233,16 @@ for (int offset = 1; offset < lanes; offset <<= 1) {{
         result = fmaxf(result, other);
 }}
 return result;
+#elif defined(__HIP_DEVICE_COMPILE__)
+{_BODY_RUN_LANES}
+float result = value;
+for (int offset = 1; offset < lanes; offset <<= 1) {{
+{_BODY_RUN_STEP_HIP}
+    const float other = __shfl_down(result, offset, 32);
+    if (same_run)
+        result = fmaxf(result, other);
+}}
+return result;
 #else
 return value;
 #endif
@@ -229,6 +259,11 @@ def _max_over_body_run(
 {_BODY_RUN_LANES}
 const int previous_a = __shfl_up_sync(mask, body_a, 1);
 const int previous_b = __shfl_up_sync(mask, body_b, 1);
+return lane == 0 || previous_a != body_a || previous_b != body_b;
+#elif defined(__HIP_DEVICE_COMPILE__)
+{_BODY_RUN_LANES}
+const int previous_a = __shfl_up(body_a, 1, 32);
+const int previous_b = __shfl_up(body_b, 1, 32);
 return lane == 0 || previous_a != body_a || previous_b != body_b;
 #else
 return true;
