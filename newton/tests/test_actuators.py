@@ -2321,7 +2321,14 @@ class _TorchCheckpointTestMixin:
     ) -> str:
         path = os.path.join(self._tmp_dir, filename)
         net.eval()
-        exported = self.torch.export.export(net, example_inputs, dynamic_shapes=dynamic_shapes)
+        # torch < 2.11 leaves cuDNN/MIOpen enabled during export, and RNN modules then take the data
+        # pointers of the fake weights; newer torch disables it during export itself.
+        cudnn_enabled = self.torch.backends.cudnn.enabled
+        self.torch.backends.cudnn.enabled = False
+        try:
+            exported = self.torch.export.export(net, example_inputs, dynamic_shapes=dynamic_shapes)
+        finally:
+            self.torch.backends.cudnn.enabled = cudnn_enabled
         extra = {"metadata.json": json.dumps(metadata)} if metadata else None
         self.torch.export.save(exported, path, extra_files=extra)
         return path
