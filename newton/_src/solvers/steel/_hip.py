@@ -14,6 +14,10 @@ expand to the original statement on CUDA and to a plain equivalent on HIP (a pre
 builtin; synchronous LDS copies in place of ``cp.async``, whose commit and wait become
 no-ops). The mapping assumes 32-lane wavefronts, as the snippets do.
 
+On HIP the coupled contact solve (``contact_block_solve``) is also kept out of line: the
+AMDGPU compiler, inlining it at each call site of the colored sweep, emits code that
+never leaves the sweep, even though every loop in the solve is bounded.
+
 On CUDA and on the CPU the preprocessed snippet is unchanged.
 """
 
@@ -41,6 +45,9 @@ _PTX_REWRITES = (
     (re.compile(r'asm volatile\("cp\.async\.wait_all;\\n" ::: "memory"\);'), "DEVICE_CP_ASYNC_WAIT_ALL();"),
 )
 
+# The coupled contact solve's lambda header, which takes DEVICE_NOINLINE before its body.
+_CONTACT_BLOCK_SOLVE = re.compile(r"(const auto contact_block_solve = \[&\]\([^)]*\)) \{")
+
 _PROLOGUE = r"""
 #if defined(__HIP_DEVICE_COMPILE__)
 #define __syncwarp(...) __syncwarp()
@@ -61,12 +68,14 @@ typedef int device_i4_t __attribute__((ext_vector_type(4)));
 #define DEVICE_CP_ASYNC_COMMIT() ((void)0)
 #define DEVICE_CP_ASYNC_WAIT_ALL() ((void)0)
 #define DEVICE_PREFETCH_L1(p) __builtin_prefetch((p))
+#define DEVICE_NOINLINE __attribute__((noinline))
 #else
 #define DEVICE_CP_ASYNC_4(dst, src) asm volatile("cp.async.ca.shared.global [%0], [%1], 4;\n" :: "r"(dst), "l"(src) : "memory")
 #define DEVICE_CP_ASYNC_16(dst, src) asm volatile("cp.async.ca.shared.global [%0], [%1], 16;\n" :: "r"(dst), "l"(src) : "memory")
 #define DEVICE_CP_ASYNC_COMMIT() asm volatile("cp.async.commit_group;\n" ::: "memory")
 #define DEVICE_CP_ASYNC_WAIT_ALL() asm volatile("cp.async.wait_all;\n" ::: "memory")
 #define DEVICE_PREFETCH_L1(p) asm volatile("prefetch.global.L1 [%0];" :: "l"(p))
+#define DEVICE_NOINLINE
 #endif
 """
 
@@ -88,6 +97,7 @@ _EPILOGUE = r"""
 #undef DEVICE_CP_ASYNC_COMMIT
 #undef DEVICE_CP_ASYNC_WAIT_ALL
 #undef DEVICE_PREFETCH_L1
+#undef DEVICE_NOINLINE
 """
 
 
@@ -98,6 +108,7 @@ def hip_snippet(snippet: str) -> str:
     text = snippet.replace(_CUDA_GUARD, _DEVICE_GUARD)
     for pattern, replacement in _PTX_REWRITES:
         text = pattern.sub(replacement, text)
+    text = _CONTACT_BLOCK_SOLVE.sub(r"\1 DEVICE_NOINLINE {", text)
     return _PROLOGUE + text + _EPILOGUE
 
 
