@@ -284,46 +284,57 @@ def configure_sdf_for_collision_shapes(builder):
 def capture_with_cuda_driver(device, fn, auto_free_on_launch: bool = False):
     """Capture ``fn`` with the CUDA driver alone, as another framework would; return launch and release functions.
 
-    ``launch`` replays the graph and synchronizes the stream. The capture loads ``libcuda.so.1``, so it runs only on Linux.
+    ``launch`` replays the graph and synchronizes the stream. The capture loads ``libcuda.so.1``, so it runs only on
+    Linux. On the HIP/ROCm port of Warp it makes the same calls through the HIP runtime, whose graph API mirrors the
+    driver's, loaded by the soname Warp links so the capture binds to the runtime Warp is already using.
     """
-    cuda = ctypes.CDLL("libcuda.so.1")
+    if getattr(wp.get_device(device), "is_hip", False):
+        hip = ctypes.CDLL("libamdhip64.so.7")
+        begin_capture, end_capture = hip.hipStreamBeginCapture, hip.hipStreamEndCapture
+        instantiate, graph_launch = hip.hipGraphInstantiateWithFlags, hip.hipGraphLaunch
+        exec_destroy, graph_destroy = hip.hipGraphExecDestroy, hip.hipGraphDestroy
+    else:
+        cuda = ctypes.CDLL("libcuda.so.1")
+        begin_capture, end_capture = cuda.cuStreamBeginCapture_v2, cuda.cuStreamEndCapture
+        instantiate, graph_launch = cuda.cuGraphInstantiateWithFlags, cuda.cuGraphLaunch
+        exec_destroy, graph_destroy = cuda.cuGraphExecDestroy, cuda.cuGraphDestroy
     handle = ctypes.c_void_p
-    cuda.cuStreamBeginCapture_v2.argtypes = [handle, ctypes.c_int]
-    cuda.cuStreamEndCapture.argtypes = [handle, ctypes.POINTER(handle)]
-    cuda.cuGraphInstantiateWithFlags.argtypes = [ctypes.POINTER(handle), handle, ctypes.c_ulonglong]
-    cuda.cuGraphLaunch.argtypes = [handle, handle]
-    cuda.cuGraphExecDestroy.argtypes = [handle]
-    cuda.cuGraphDestroy.argtypes = [handle]
+    begin_capture.argtypes = [handle, ctypes.c_int]
+    end_capture.argtypes = [handle, ctypes.POINTER(handle)]
+    instantiate.argtypes = [ctypes.POINTER(handle), handle, ctypes.c_ulonglong]
+    graph_launch.argtypes = [handle, handle]
+    exec_destroy.argtypes = [handle]
+    graph_destroy.argtypes = [handle]
     stream = handle(wp.get_stream(device).cuda_stream)
     graph, graph_exec = handle(), handle()
     thread_local_mode = 1
-    began = cuda.cuStreamBeginCapture_v2(stream, thread_local_mode)
+    began = begin_capture(stream, thread_local_mode)
     if began != 0:
         raise RuntimeError(f"cuStreamBeginCapture failed with {began}")
     try:
         fn()
     except BaseException:
-        if cuda.cuStreamEndCapture(stream, ctypes.byref(graph)) == 0:
-            cuda.cuGraphDestroy(graph)
+        if end_capture(stream, ctypes.byref(graph)) == 0:
+            graph_destroy(graph)
         raise
-    ended = cuda.cuStreamEndCapture(stream, ctypes.byref(graph))
+    ended = end_capture(stream, ctypes.byref(graph))
     if ended != 0:
         raise RuntimeError(f"cuStreamEndCapture failed with {ended}")
     flags = ctypes.c_ulonglong(1 if auto_free_on_launch else 0)
-    instantiated = cuda.cuGraphInstantiateWithFlags(ctypes.byref(graph_exec), graph, flags)
+    instantiated = instantiate(ctypes.byref(graph_exec), graph, flags)
     if instantiated != 0:
-        cuda.cuGraphDestroy(graph)
+        graph_destroy(graph)
         raise RuntimeError(f"cuGraphInstantiateWithFlags failed with {instantiated}")
 
     def launch():
-        launched = cuda.cuGraphLaunch(graph_exec, stream)
+        launched = graph_launch(graph_exec, stream)
         if launched != 0:
             raise RuntimeError(f"cuGraphLaunch failed with {launched}")
         wp.synchronize_stream(wp.get_stream(device))
 
     def release():
-        cuda.cuGraphExecDestroy(graph_exec)
-        cuda.cuGraphDestroy(graph)
+        exec_destroy(graph_exec)
+        graph_destroy(graph)
 
     return launch, release
 
