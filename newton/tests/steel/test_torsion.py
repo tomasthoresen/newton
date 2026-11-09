@@ -3226,13 +3226,15 @@ def test_colored_contact_order_changes_the_result_no_more_than_on_immediate(test
 
 def test_colored_serial_tail_hosts_the_group_after_its_members(test, device):
     """Solve a group whose members overflow a two-color cap in the serial tail, host last, on each variant."""
-    uncapped, *_ = fixture(0.01, device=device, spin=10.0, **_COLORED_TORSION)
+    # A slow spin keeps the members' sliding pairs inside their friction cones, so the group's torsion row
+    # carries an impulse; at a fast spin the pairs use up the whole budget and the row is left rounding noise.
+    uncapped, *_ = fixture(0.01, device=device, spin=1.0, **_COLORED_TORSION)
     for variant in ("packed", "block"):
         with test.subTest(variant=variant):
             with patch.object(solver_steel, "PROPAGATION_COLOR_TAIL", 2):
                 with _colored_variant(variant):
                     _, solver, model, state, contacts = fixture(
-                        0.01, device=device, spin=10.0, step=False, **_COLORED_TORSION
+                        0.01, device=device, spin=1.0, step=False, **_COLORED_TORSION
                     )
                 output = model.state()
                 solver.step(state, output, model.control(), contacts, 0.0025)
