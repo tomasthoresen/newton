@@ -538,9 +538,9 @@ class TestPADMMSolver(NewtonTestCase):
         """
         for device in ("cpu", wp.get_device("cpu")):
             with self.subTest(device=device):
-                model = ModelKamino.from_newton(basics.build_box_on_plane().finalize(device=device))
+                test = TestSetup(builder_fn=basics.build_box_on_plane, max_world_contacts=8, device=device)
                 with mock.patch("warp.is_conditional_graph_supported", return_value=False):
-                    solver = PADMMSolver(model=model)
+                    solver = PADMMSolver(model=test.model, problem=test.problem)
                 self.assertTrue(solver._use_graph_conditionals)
 
     def test_02_padmm_solve(self):
