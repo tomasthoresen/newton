@@ -78,7 +78,7 @@ _ITERATE_SEED = wp.constant(wp.int32(5381))
 
 
 @wp.func_native("""
-#if defined(__CUDA_ARCH__)
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
 __syncthreads();
 #endif
 """)
@@ -90,7 +90,7 @@ def _make_shared_buffer(dtype: type, size: int):
     """Create the function returning the address of a static shared buffer of a thread block, or zero on the CPU."""
     ctype = {wp.float32: "float", wp.int32: "int"}[dtype]
     snippet = f"""
-#if defined(__CUDA_ARCH__)
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
 __shared__ {ctype} values[{size}];
 return reinterpret_cast<uint64_t>(values);
 #else
@@ -105,7 +105,7 @@ return 0;
 
 
 @wp.func_native("""
-#if defined(__CUDA_ARCH__)
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
 extern __shared__ float dynamic_shared[];
 return reinterpret_cast<uint64_t>(dynamic_shared);
 #else
