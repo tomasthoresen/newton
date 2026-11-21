@@ -12,6 +12,7 @@ See the :mod:`newton._src.solvers.kamino.solvers.padmm` module for a detailed de
 from __future__ import annotations
 
 import dataclasses
+import logging
 
 import warp as wp
 
@@ -24,7 +25,6 @@ from ...dynamics.dual import DualProblem
 from ...geometry.contacts import ContactsKamino
 from ...kinematics.limits import LimitsKamino
 from ...linalg import IterativeSolver, LLTBlockedRCMSolver, LLTBlockedSolver, RedundantRowShift
-from ...utils import logger as msg
 from ...utils.tile import get_block_dim, get_tile_size
 from .kernels import (
     _apply_dual_preconditioner_to_solution,
@@ -62,6 +62,8 @@ from .types import (
     PADMMWarmStartMode,
     convert_config_to_struct,
 )
+
+logger = logging.getLogger(__name__)
 
 ###
 # Module interface
@@ -334,7 +336,7 @@ class PADMMSolver:
         conditionals_available = not wp.get_device(model.device).is_cuda or wp.is_conditional_graph_supported()
         self._use_graph_conditionals = use_graph_conditionals and conditionals_available
         if use_graph_conditionals and not self._use_graph_conditionals:
-            msg.warning(
+            logger.warning(
                 "Graph conditionals are unavailable on this platform, "
                 "using unrolled for-loops over max iterations in the PADMM solver."
             )

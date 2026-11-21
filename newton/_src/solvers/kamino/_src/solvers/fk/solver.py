@@ -2611,7 +2611,7 @@ class ForwardKinematicsSolver:
         # where the loop conditions are read on the host and iterate only as far as needed.
         if use_graph and not wp.is_conditional_graph_supported():
             if not self._warned_eager_fallback and wp.get_device(self.device).is_cuda:
-                msg.warning(
+                logger.warning(
                     "Graph conditionals are unavailable on this platform; "
                     "the forward-kinematics solve runs eagerly instead of as a captured graph."
                 )

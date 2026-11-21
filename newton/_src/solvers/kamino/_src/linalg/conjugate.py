@@ -8,18 +8,20 @@ KAMINO: Conjugate gradient and conjugate residual solvers
 from __future__ import annotations
 
 import functools
+import logging
 import math
 from collections.abc import Callable
 from typing import Any, Generic
 
 import warp as wp
 
-from ..utils import logger as msg
 from . import blas
 from .core import DenseLinearOperatorData
 from .sparse_matrix import BlockSparseMatrices
 from .sparse_operator import BlockSparseLinearOperators
 from .types import IndexType, ScalarType
+
+logger = logging.getLogger(__name__)
 
 # No need to auto-generate adjoint code for linear solvers
 wp.set_module_options({"enable_backward": False, "default_grid_stride": False})
@@ -609,7 +611,7 @@ class ConjugateSolver(Generic[ScalarType, IndexType]):
         conditionals_available = not wp.get_device(self.device).is_cuda or wp.is_conditional_graph_supported()
         self.use_graph_conditionals = use_graph_conditionals and conditionals_available
         if use_graph_conditionals and not self.use_graph_conditionals:
-            msg.warning(
+            logger.warning(
                 "Graph conditionals are unavailable on this platform, "
                 "using unrolled for-loops over max iterations in the conjugate solver."
             )
