@@ -6765,6 +6765,15 @@ def _two_particle_tile_solve_matches_legacy_bits(test, device):
     legacy_kernel, packed_kernel = _pin_tile_kernel_options(
         test, make_solve_elasticity_tile(True, True, False), make_solve_elasticity_tile(True, False, True)
     )
+    if getattr(wp.get_device(device), "is_hip", False):
+        # The two tiles are different kernels, and on the HIP/ROCm port of Warp the compiler
+        # does not form fused multiply-adds at the same places in both, so their results are
+        # not reliably equal bit for bit while it may contract. The comparison is about the
+        # packing, not about contraction, so on HIP it is made with contraction off.
+        for kernel in (legacy_kernel, packed_kernel):
+            saved_fuse_fp = kernel.module.options.get("fuse_fp", True)
+            test.addCleanup(wp.set_module_options, {"fuse_fp": saved_fuse_fp}, module=kernel.module)
+            wp.set_module_options({"fuse_fp": False}, module=kernel.module)
     wp.launch(
         legacy_kernel,
         dim=model.particle_count * TILE_SIZE_TRI_MESH_ELASTICITY_SOLVE,
